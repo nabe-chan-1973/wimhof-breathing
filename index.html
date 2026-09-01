@@ -406,7 +406,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
         <div class="seg-ctl" id="ctlBells"></div>
       </div>
       <div class="row">
-        <div class="row-label"><b>音量</b></div>
+        <div class="row-label"><b>音量</b><small id="iosNote" hidden></small></div>
         <div class="step" data-step="volume"></div>
       </div>
       <div class="row" id="voiceTestRow">
@@ -570,6 +570,10 @@ const Audio_ = {
     this.voice = this.ctx.createGain();     // 音声クリップ用。合図音とは別に音量を持つ
     this.voice.gain.value = 1.8;   // VOICEVOX の出力はピーク0.42ほど。上げても歪まない
     this.voice.connect(this.master);
+
+    // iPhone は既定だと本体の消音スイッチで Web Audio ごと黙る。
+    // playback を宣言しておくと、スイッチが入っていても鳴る（Safari 16.4+）。
+    try{ if(navigator.audioSession) navigator.audioSession.type = "playback"; }catch(e){}
   },
   setVolume(){ if(this.master) this.master.gain.value = cfg.volume / 100; },
 
@@ -968,6 +972,12 @@ if(Voice.ok){
 /* SNSアプリなどの「アプリ内ブラウザ」判定。
    Android の WebView は読み上げエンジンに繋がっておらず、声の一覧は取れるのに
    speak() だけが synthesis-failed で必ず失敗する。 */
+function isIOS(){
+  const ua = navigator.userAgent || "";
+  return /iP(hone|ad|od)/.test(ua) ||
+         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 function inAppBrowser(){
   const ua = navigator.userAgent || "";
   if(/; wv\)/.test(ua)) return true;                                   // Android WebView
@@ -1520,6 +1530,11 @@ function buildSettings(){
   ], "bells", () => { Audio_.init(); Audio_.chime(); });
   document.querySelectorAll(".step[data-step]").forEach(buildStep);
   buildHolds();
+  if(isIOS()){
+    const n = $("#iosNote");
+    n.hidden = false;
+    n.textContent = "音が出ないときは、本体側面の消音スイッチと、音量ボタン（着信音ではなくメディア音量）を確認してください。";
+  }
   if(CLIPS_COMPLETE){
     // 内蔵音声で完結しているので、端末の読み上げまわりの案内は出さない
     $("#voiceTestRow").hidden = true;
