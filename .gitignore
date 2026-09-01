@@ -1,0 +1,11 @@
+# 音声を作り直す途中の中間ファイル
+voice/*.wav
+
+# OS が勝手に置くもの
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
