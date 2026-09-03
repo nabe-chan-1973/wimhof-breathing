@@ -1301,6 +1301,7 @@ async function requestWake(){
 }
 document.addEventListener("visibilitychange", () => {
   if(document.visibilityState === "visible" && S.running){ requestWake(); Audio_.init(); }
+  if(document.visibilityState === "hidden") applyUpdateIfIdle();
 });
 
 /* ============================================================
@@ -1574,6 +1575,7 @@ function buildSettings(){
    ============================================================ */
 function show(id){
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === id));
+  if(id === "home") applyUpdateIfIdle();
 }
 
 $("#toSettings").addEventListener("click", () => show("settings"));
@@ -1675,8 +1677,30 @@ $("#tapzone").addEventListener("click", () => {
 
 // ホーム画面に置いてオフラインで使えるようにする。
 // GitHub Pages など、sw.js を一緒に配信している場所でだけ有効になる。
+let updateReady = false;
+
+// 新しい版が届いたら、ホーム画面にいるときだけ黙って読み込み直す。
+// 呼吸中に画面が作り直されたら台無しなので、セッション中は絶対にやらない。
+// 設定をいじっている最中も避ける。ホームでの再読み込みは一瞬で、見た目には何も起きない。
+function applyUpdateIfIdle(){
+  if(!updateReady || S.running) return;
+  const home = document.getElementById("home");
+  if(!home || !home.classList.contains("on")) return;
+  updateReady = false;
+  location.reload();
+}
+
 if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")){
-  addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+  addEventListener("load", () => {
+    // 初回の登録でも controllerchange は飛ぶ。それは更新ではないので見分ける。
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if(!hadController) return;
+      updateReady = true;
+      applyUpdateIfIdle();
+    });
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
 }
 
 // 初期化
