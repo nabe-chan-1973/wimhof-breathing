@@ -17,9 +17,12 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HTML = os.path.join(ROOT, "index.html")
-OUT = os.path.join(ROOT, "voice")
+VOICE = os.path.join(ROOT, "voice")
+SFX = os.path.join(ROOT, "sfx")
 BEGIN = "/* VOICE_CLIPS_BEGIN */"
 END = "/* VOICE_CLIPS_END */"
+SFX_BEGIN = "/* SFX_CLIPS_BEGIN */"
+SFX_END = "/* SFX_CLIPS_END */"
 MIME = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".m4a": "audio/mp4"}
 
 
@@ -29,15 +32,18 @@ def line_keys(src):
     return [k for k, _ in re.findall(r'(\w+)\s*:\s*"((?:[^"\\]|\\.)*)"', src[i:j])]
 
 
-def build_block():
+def collect(folder):
     files = {}
-    for f in sorted(glob.glob(os.path.join(OUT, "*"))):
+    for f in sorted(glob.glob(os.path.join(folder, "*"))):
         ext = os.path.splitext(f)[1].lower()
-        if ext in MIME:
-            files.setdefault(os.path.splitext(os.path.basename(f))[0], f)
-    if not files:
-        sys.exit("voice/ に音声ファイルがありません。先に tools/voicevox.py make を実行してください。")
+        name = os.path.splitext(os.path.basename(f))[0]
+        # source-*.wav は編集前の原本なので埋め込まない
+        if ext in MIME and not name.startswith("source-"):
+            files.setdefault(name, f)
+    return files
 
+
+def build_block(files, varname):
     entries, total = [], 0
     for key in sorted(files):
         path = files[key]
@@ -46,7 +52,9 @@ def build_block():
         mime = MIME[os.path.splitext(path)[1].lower()]
         b64 = base64.b64encode(raw).decode("ascii")
         entries.append('"%s":"data:%s;base64,%s"' % (key, mime, b64))
-    return files, total, "const VOICE_CLIPS = {\n" + ",\n".join(entries) + "\n};"
+    if not entries:
+        return 0, "const %s = {};" % varname
+    return total, "const %s = {\n" % varname + ",\n".join(entries) + "\n};"
 
 
 def main():
@@ -55,17 +63,26 @@ def main():
     a = ap.parse_args()
 
     src = io.open(HTML, encoding="utf-8").read()
-    i, j = src.index(BEGIN), src.index(END)
 
     if a.clear:
-        block = "const VOICE_CLIPS = {};"
-        report = "埋め込みを消しました。端末の読み上げに戻ります。"
+        block, sfx_block = "const VOICE_CLIPS = {};", "const SFX_CLIPS = {};"
+        report = "埋め込みを消しました。端末の読み上げと合成音に戻ります。"
     else:
-        files, total, block = build_block()
+        files = collect(VOICE)
+        if not files:
+            sys.exit("voice/ に音声ファイルがありません。先に tools/voicevox.py make を実行してください。")
+        total, block = build_block(files, "VOICE_CLIPS")
+        sfx = collect(SFX)
+        sfx_total, sfx_block = build_block(sfx, "SFX_CLIPS")
         keys, have = line_keys(src), set(files)
         missing = [k for k in keys if k not in have]
         extra = sorted(have - set(keys))
-        report = "%d 本 / %.0f KB を埋め込みました。" % (len(files), total / 1024.0)
+        report = "セリフ %d 本 / %.0f KB" % (len(files), total / 1024.0)
+        if sfx:
+            report += "、合図音 %d 個 / %.0f KB（%s）" % (
+                len(sfx), sfx_total / 1024.0, "、".join(sorted(sfx)))
+        report += " を埋め込みました。"
+        total += sfx_total
         if missing:
             report += "\n読み上げのまま残るセリフ %d 本: %s" % (len(missing), ", ".join(missing))
         if extra:
@@ -74,7 +91,10 @@ def main():
             report += "\n⚠ 12MB を超えています。アーティファクトの上限16MBに近いので、"
             report += "ビットレートを下げるか wav を mp3 にしてください。"
 
+    i, j = src.index(BEGIN), src.index(END)
     out = src[:i] + BEGIN + "\n" + block + "\n" + src[j:]
+    i, j = out.index(SFX_BEGIN), out.index(SFX_END)
+    out = out[:i] + SFX_BEGIN + "\n" + sfx_block + "\n" + out[j:]
     io.open(HTML, "w", encoding="utf-8").write(out)
     print(report)
     print("index.html: %.1f MB" % (os.path.getsize(HTML) / 1048576.0))

@@ -7,7 +7,7 @@
    音声もBGMも index.html の中に入っているので、これだけ持てば完全に
    オフラインで動く。Google Fonts は取れたときに一緒に貯めておく。 */
 
-const VERSION = "v2";   // index.html を更新したら、ここも上げると確実に配り直せる
+const VERSION = "v3";   // index.html を更新したら、ここも上げると確実に配り直せる
 const CACHE = "wimhof-" + VERSION;
 
 const ASSETS = [
