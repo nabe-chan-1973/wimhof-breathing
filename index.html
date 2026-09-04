@@ -499,9 +499,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 // 「ふつう」= 当初の「ゆっくり」。
 const PACE = { slow:6.0, normal:5.0, fast:4.0 };
 const INHALE_RATIO = 0.55;                             // 吸う:吐く の配分
-const LAST_BREATH = 12.0;                              // 息止め直前の「最後の一息」
-const LB_IN = LAST_BREATH * 0.45;                      // 吸い切るまで
-const LB_OUT = LAST_BREATH * 0.80;                     // 吐き切るまで
+const LAST_BREATH = 15.0;                              // 息止め直前の「最後の一息」
+const LB_IN = LAST_BREATH * 0.50;                      // 吸い切るまで（7.5秒）
+const LB_OUT = LAST_BREATH * 0.80;                     // 吐き切るまで（12.0秒）
 const AFTER_RECOVERY = 5.0;                            // リカバリー後の間（次ラウンドの予告を言い切れる長さ）
 const PREPARE = 14;
 
