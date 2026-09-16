@@ -137,10 +137,70 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .mini-row{display:flex; gap:10px}
 .mini-row .btn.ghost{flex:1}
 
-.log{border-top:1px solid var(--line-soft); padding-top:14px; display:flex; flex-direction:column; gap:9px}
-.log-item{display:flex; justify-content:space-between; align-items:baseline; font-size:13px; color:var(--text-2)}
-.log-item b{font-weight:500; color:var(--text-3); font-size:12px; letter-spacing:.04em}
-.log-item span{font-variant-numeric:tabular-nums; letter-spacing:.06em}
+/* 続けた日数。ホームでいちばん目に入るところに置く */
+.streak{
+  display:flex; align-items:baseline; gap:20px; width:100%; text-align:left;
+  border-top:1px solid var(--line-soft); padding:15px 2px 0;
+}
+.st{display:flex; align-items:baseline; gap:6px}
+.st b{
+  font-family:var(--f-disp); font-weight:400; font-size:25px; line-height:1;
+  letter-spacing:.02em; font-variant-numeric:tabular-nums;
+}
+.st.hot b{color:var(--ember)}
+.st span{font-size:11.5px; color:var(--text-3); letter-spacing:.1em}
+.streak .go{margin-left:auto; font-size:12px; color:var(--text-3); letter-spacing:.1em}
+
+/* ============================================================
+   記録
+   ============================================================ */
+#record{gap:0; padding-top:max(18px, env(safe-area-inset-top))}
+.rec-body{flex:1; overflow-y:auto; overscroll-behavior:contain; padding:22px 0 20px}
+.rec-nums{display:flex; gap:9px}
+.rec-num{
+  flex:1; background:var(--bg-2); border-radius:var(--r); padding:17px 8px;
+  display:flex; flex-direction:column; align-items:center; gap:7px;
+}
+.rec-num b{
+  font-family:var(--f-disp); font-weight:400; font-size:31px; line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.rec-num.hot b{color:var(--ember)}
+.rec-num span{font-size:10.5px; color:var(--text-3); letter-spacing:.12em}
+
+.grid-wrap{margin-top:28px; display:flex; flex-direction:column; gap:11px}
+.grid{display:flex; gap:5px}
+.grid .wd{display:flex; flex-direction:column; gap:5px; padding-right:3px}
+.grid .wd i{
+  height:17px; line-height:17px; font-style:normal;
+  font-size:9px; color:var(--text-3); letter-spacing:0;
+}
+.grid .cols{display:flex; gap:5px; flex:1; overflow-x:auto}
+.grid .col{display:flex; flex-direction:column; gap:5px}
+.grid .d{width:17px; height:17px; border-radius:4px; background:var(--line-soft); flex:none}
+.grid .d.l1{background:rgba(226,132,92,.32)}
+.grid .d.l2{background:rgba(226,132,92,.62)}
+.grid .d.l3{background:var(--ember)}
+.grid .d.none{background:transparent}
+.grid .d.today{box-shadow:0 0 0 1.5px var(--text-3)}
+.legend-n{display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--text-3)}
+.legend-n i{width:11px; height:11px; border-radius:3px; display:inline-block}
+
+.rec-list{
+  margin-top:28px; display:flex; flex-direction:column; gap:1px;
+  background:var(--line-soft); border-radius:var(--r); overflow:hidden;
+}
+.rec-row{
+  background:var(--bg-2); padding:13px 15px;
+  display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+}
+.rec-row .dt{font-size:12.5px; color:var(--text-3); letter-spacing:.04em; white-space:nowrap}
+.rec-row .hd{
+  font-size:13px; color:var(--text-2); text-align:right;
+  font-variant-numeric:tabular-nums; letter-spacing:.05em;
+}
+.rec-empty{color:var(--text-3); font-size:13px; line-height:1.8; text-align:center; padding:40px 0}
+.done-streak{display:flex; gap:20px; align-items:baseline; justify-content:center}
 
 /* ============================================================
    設定
@@ -344,7 +404,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
       <button class="btn ghost" id="toSettings">設定</button>
       <button class="btn ghost" id="toSafety">安全上の注意</button>
     </div>
-    <div class="log" id="log" hidden></div>
+    <button class="streak" id="streak" type="button" hidden></button>
   </div>
 </section>
 
@@ -471,7 +531,17 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
     <h2 class="done-title">お疲れさまでした</h2>
   </div>
   <div class="results" id="results"></div>
+  <div class="done-streak" id="doneStreak"></div>
   <button class="btn" id="doneBtn">ホームへ</button>
+</section>
+
+<!-- ===================== 記録 ===================== -->
+<section id="record" class="screen">
+  <div class="set-head">
+    <h2>記録</h2>
+    <button class="quit" id="closeRecord">閉じる</button>
+  </div>
+  <div class="rec-body" id="recBody"></div>
 </section>
 
 <!-- ===================== 免責 ===================== -->
@@ -1357,6 +1427,7 @@ function finish(){
   stopSession();
   if(res.length) saveLog(res);
   const best = Math.max.apply(null, res.concat([0]));
+  $("#doneStreak").innerHTML = res.length ? statChips(stats()) : "";
   $("#results").innerHTML = res.length
     ? res.map((s, i) =>
         '<div class="res"><span class="rl">ラウンド ' + (i + 1) + '</span>' +
@@ -1376,21 +1447,137 @@ function quit(){
 /* ============================================================
    記録
    ============================================================ */
+/* 日付は必ず端末のローカル時刻で扱う。
+   toISOString() は UTC なので、朝のうちに実践すると前日として
+   記録されてしまい、連続日数が途切れる。 */
+function dkey(d){
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+function dparse(s){
+  const a = s.split("-").map(Number);
+  return new Date(a[0], a[1] - 1, a[2]);
+}
+function dshift(s, n){
+  const d = dparse(s); d.setDate(d.getDate() + n); return dkey(d);
+}
+
+function logList(){
+  try{ return JSON.parse(localStorage.getItem("wh.log") || "[]"); }catch(e){ return []; }
+}
+
 function saveLog(res){
   try{
-    const list = JSON.parse(localStorage.getItem("wh.log") || "[]");
-    list.unshift({ d: new Date().toISOString().slice(0, 10), r: res });
-    localStorage.setItem("wh.log", JSON.stringify(list.slice(0, 30)));
+    const list = logList();
+    list.unshift({ d: dkey(new Date()), r: res, p: cfg.pace, b: cfg.breaths });
+    localStorage.setItem("wh.log", JSON.stringify(list.slice(0, 2000)));
   }catch(e){}
 }
+
+/* 連続日数・延べ日数・最長連続。1日に何回やっても1日と数える。 */
+function stats(){
+  const list = logList();
+  const byDay = {};
+  list.forEach(x => {
+    if(!byDay[x.d]) byDay[x.d] = { holds: [], n: 0 };
+    byDay[x.d].holds = byDay[x.d].holds.concat(x.r || []);
+    byDay[x.d].n++;
+  });
+  const days = Object.keys(byDay).sort();
+
+  // 今日まだなら昨日から数える。実践前に0と出したら気が滅入るので。
+  let streak = 0, cur = dkey(new Date());
+  if(!byDay[cur]) cur = dshift(cur, -1);
+  while(byDay[cur]){ streak++; cur = dshift(cur, -1); }
+
+  let best = 0, run = 0, prev = null;
+  days.forEach(d => {
+    run = (prev && dshift(prev, 1) === d) ? run + 1 : 1;
+    if(run > best) best = run;
+    prev = d;
+  });
+
+  return { streak, total: days.length, best, sessions: list.length, byDay, list };
+}
+
+function statChips(st){
+  const hot = st.streak >= 3 ? " hot" : "";
+  return '<span class="st' + hot + '"><span>連続</span><b>' + st.streak + '</b><span>日</span></span>' +
+         '<span class="st"><span>のべ</span><b>' + st.total + '</b><span>日</span></span>';
+}
+
+const WEEKS = 13;                 // 3か月ぶんの升目
+
+function renderRecord(){
+  const st = stats();
+  const box = $("#recBody");
+  if(st.total === 0){
+    box.innerHTML = '<div class="rec-empty">まだ記録がありません。<br>'
+      + '1回やると、ここに残っていきます。</div>';
+    return;
+  }
+
+  const num = (v, label, hot) =>
+    '<div class="rec-num' + (hot ? " hot" : "") + '"><b>' + v + '</b><span>' + label + '</span></div>';
+
+  // ---- 升目。今週の土曜で終わるように、13週ぶん並べる ----
+  const end = new Date();
+  end.setDate(end.getDate() + (6 - end.getDay()));          // 今週の土曜
+  const start = new Date(end);
+  start.setDate(start.getDate() - (WEEKS * 7 - 1));
+  const todayKey = dkey(new Date());
+
+  const cols = [];
+  const cur = new Date(start);
+  for(let w = 0; w < WEEKS; w++){
+    let col = "";
+    for(let i = 0; i < 7; i++){
+      const k = dkey(cur);
+      const day = st.byDay[k];
+      let cls = "d";
+      if(k > todayKey) cls += " none";                       // これから来る日
+      else if(day){
+        const sec = day.holds.reduce((a, b) => a + b, 0);
+        cls += sec > 480 ? " l3" : (sec > 240 ? " l2" : " l1");
+      }
+      if(k === todayKey) cls += " today";
+      col += '<i class="' + cls + '" title="' + k + '"></i>';
+      cur.setDate(cur.getDate() + 1);
+    }
+    cols.push('<div class="col">' + col + "</div>");
+  }
+
+  box.innerHTML =
+    '<div class="rec-nums">'
+      + num(st.streak, "連続日数", st.streak >= 3)
+      + num(st.total, "のべ日数")
+      + num(st.best, "最長連続")
+    + "</div>"
+    + '<div class="grid-wrap">'
+      + '<div class="eyebrow">この3か月</div>'
+      + '<div class="grid">'
+        + '<div class="wd">' + "日月火水木金土".split("").map(c => "<i>" + c + "</i>").join("") + "</div>"
+        + '<div class="cols">' + cols.join("") + "</div>"
+      + "</div>"
+      + '<div class="legend-n"><span>息止めの合計が長い日ほど濃く</span>'
+        + '<i style="background:rgba(226,132,92,.32)"></i>'
+        + '<i style="background:rgba(226,132,92,.62)"></i>'
+        + '<i style="background:var(--ember)"></i></div>'
+    + "</div>"
+    + '<div class="rec-list">' + st.list.slice().sort((a, b) => a.d < b.d ? 1 : -1).slice(0, 40).map(x =>
+        '<div class="rec-row"><span class="dt">' + x.d.replace(/-/g, ".") + " · "
+        + (x.r || []).length + 'R</span><span class="hd">'
+        + (x.r || []).map(mmss).join("  /  ") + "</span></div>").join("") + "</div>"
+    + (st.sessions > 40 ? '<div class="legend-n" style="margin-top:12px">ほか '
+        + (st.sessions - 40) + " 回</div>" : "");
+}
+
 function renderLog(){
-  let list = [];
-  try{ list = JSON.parse(localStorage.getItem("wh.log") || "[]"); }catch(e){}
-  const box = $("#log");
-  box.hidden = list.length === 0;
-  box.innerHTML = list.slice(0, 3).map(x =>
-    '<div class="log-item"><b>' + x.d.replace(/-/g, ".") + " · " + x.r.length + "R</b><span>" +
-    x.r.map(mmss).join("  /  ") + "</span></div>").join("");
+  const st = stats();
+  const box = $("#streak");
+  box.hidden = st.total === 0;
+  box.innerHTML = statChips(st) + '<span class="go">記録 ›</span>';
 }
 
 /* ============================================================
@@ -1587,6 +1774,8 @@ function show(id){
 }
 
 $("#toSettings").addEventListener("click", () => show("settings"));
+$("#streak").addEventListener("click", () => { renderRecord(); show("record"); });
+$("#closeRecord").addEventListener("click", () => { show("home"); renderHome(); });
 $("#closeSettings").addEventListener("click", () => { show("home"); renderHome(); });
 $("#startBtn").addEventListener("click", startSession);
 $("#startFromSettings").addEventListener("click", startSession);
