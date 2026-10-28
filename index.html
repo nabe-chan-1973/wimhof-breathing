@@ -1552,7 +1552,8 @@ async function exportData(note){
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 8000);
-    markBackup(); note(name + " を保存しました。");
+    markBackup();
+    note(name + " を書き出しました。保存先に見当たらないときは「文字でコピー」をお使いください。");
   }catch(e){ note("書き出せませんでした。「文字でコピー」をお試しください。"); }
 }
 
