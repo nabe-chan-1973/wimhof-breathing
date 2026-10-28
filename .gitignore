@@ -9,3 +9,6 @@ desktop.ini
 # Python
 __pycache__/
 *.pyc
+
+# ビルドの出力
+build/

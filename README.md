@@ -27,6 +27,7 @@
 - 安全装置：息止め中の生存確認の鐘、上限時間での自動リカバリー
 - 記録：連続日数・のべ日数・最長連続と、3か月ぶんのカレンダー
   （端末内にのみ保存。外部へは送信しません）
+- 記録の書き出しと読み込み。読み込みは差分を足すだけで、既存の記録を消しません
 
 ## 作り
 
@@ -49,6 +50,9 @@ python tools/voicevox.py list                              # 声の一覧
 python tools/voicevox.py make --speaker 84 --speed 0.95    # voice/ に41本を生成
 python tools/embed_voice.py                                # index.html に埋め込む
 ```
+
+アーティファクト版（claude.ai で開くほう）を作り直すときは
+`python tools/make_artifact.py` を実行します。
 
 合図音を差し替えるときは `sfx/` に `tingsha.mp3`（息止め開始・目標到達）、
 `tingshaLong.mp3`（終わり）、`bell.mp3`（生存確認）を置いて、同じく

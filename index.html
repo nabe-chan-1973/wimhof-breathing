@@ -202,6 +202,18 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .rec-empty{color:var(--text-3); font-size:13px; line-height:1.8; text-align:center; padding:40px 0}
 .done-streak{display:flex; gap:20px; align-items:baseline; justify-content:center}
 
+/* 記録の持ち出し */
+.backup{margin-top:30px; border-top:1px solid var(--line-soft); padding-top:20px;
+  display:flex; flex-direction:column; gap:13px}
+.backup h3{margin:0; font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--text-3); font-weight:500}
+.backup p{margin:0; font-size:12px; line-height:1.75; color:var(--text-3)}
+.backup p.warn{color:var(--ember)}
+.backup .row2{display:flex; gap:9px}
+.backup .row2 .btn{flex:1}
+.bk-msg{font-size:12.5px; line-height:1.7; color:var(--ice); min-height:1.2em}
+.dot-alert{color:var(--ember); font-size:15px; line-height:1; vertical-align:middle}
+
 /* ============================================================
    設定
    ============================================================ */
@@ -1470,9 +1482,121 @@ function logList(){
 function saveLog(res){
   try{
     const list = logList();
-    list.unshift({ d: dkey(new Date()), r: res, p: cfg.pace, b: cfg.breaths });
+    // t は1件ごとの識別子。書き出したファイルを読み込み直すときの重複判定に使う。
+    list.unshift({ t: Date.now(), d: dkey(new Date()), r: res, p: cfg.pace, b: cfg.breaths });
     localStorage.setItem("wh.log", JSON.stringify(list.slice(0, 2000)));
   }catch(e){}
+}
+
+/* ============================================================
+   記録を守る
+   ブラウザの保存領域は、空き容量が足りないときや「サイトデータの削除」で
+   消える。persist() を取れていれば自動削除の対象から外れるが、それでも
+   手動の消去・アプリの入れ直し・機種変更では消える。
+   最後の守りは、書き出したファイルを別の場所に置いてもらうこと。
+   ============================================================ */
+const BACKUP_KEY = "wh.backupAt";
+
+async function askPersist(){
+  try{
+    if(!navigator.storage || !navigator.storage.persist) return null;
+    if(await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  }catch(e){ return null; }
+}
+
+function backupPayload(){
+  return JSON.stringify({
+    app: "wimhof-breathing", version: 1,
+    exportedAt: new Date().toISOString(),
+    log: logList(), cfg: cfg
+  }, null, 1);
+}
+
+function markBackup(){
+  try{ localStorage.setItem(BACKUP_KEY, dkey(new Date())); }catch(e){}
+}
+
+function backupAge(){
+  let at = null;
+  try{ at = localStorage.getItem(BACKUP_KEY); }catch(e){}
+  if(!at) return null;
+  return Math.round((dparse(dkey(new Date())) - dparse(at)) / 86400000);
+}
+
+// 30日以上書き出していない、または一度も書き出していないのに記録がある
+function backupOverdue(){
+  if(stats().total === 0) return false;
+  const age = backupAge();
+  return age === null || age >= 30;
+}
+
+/* 書き出し。スマホでは共有シートがいちばん確実に外へ出せる
+   （iOS のホーム画面アプリはファイルのダウンロードが効かないことがある）。 */
+async function exportData(note){
+  const json = backupPayload();
+  const name = "wimhof-" + dkey(new Date()) + ".json";
+  try{
+    const file = new File([json], name, { type: "application/json" });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], title: "WimHof呼吸法の記録" });
+      markBackup(); note("書き出しました。消えない場所に置いてください。");
+      return;
+    }
+  }catch(e){
+    if(e && e.name === "AbortError"){ note(""); return; }   // 共有をやめただけ
+  }
+  try{
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    markBackup(); note(name + " を保存しました。");
+  }catch(e){ note("書き出せませんでした。「文字でコピー」をお試しください。"); }
+}
+
+async function copyData(note){
+  try{
+    await navigator.clipboard.writeText(backupPayload());
+    markBackup();
+    note("コピーしました。メモ帳などに貼って保存してください。");
+  }catch(e){ note("コピーできませんでした。端末の設定で許可が必要かもしれません。"); }
+}
+
+/* 読み込み。いまある記録と突き合わせて、足りないものだけ足す。
+   上書きしないので、古いファイルを読み込んでも新しい記録は消えない。 */
+function importJSON(text, note){
+  let data;
+  try{ data = JSON.parse(text); }catch(e){ note("ファイルの中身を読み取れませんでした。"); return; }
+  const incoming = Array.isArray(data) ? data : (data && data.log);
+  if(!Array.isArray(incoming)){ note("このアプリの記録ファイルではないようです。"); return; }
+
+  const cur = logList();
+  const hadNone = cur.length === 0;
+  const key = x => (x.t ? "t" + x.t : "d" + x.d + "|" + (x.r || []).join(","));
+  const seen = new Set(cur.map(key));
+  let added = 0;
+  incoming.forEach(x => {
+    if(!x || !x.d) return;
+    if(seen.has(key(x))) return;
+    seen.add(key(x)); cur.push(x); added++;
+  });
+  cur.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : (b.t || 0) - (a.t || 0)));
+  try{ localStorage.setItem("wh.log", JSON.stringify(cur.slice(0, 2000))); }
+  catch(e){ note("保存できませんでした。端末の空き容量をご確認ください。"); return; }
+
+  // まっさらな端末への復元のときだけ、設定も戻す。
+  // すでに記録がある端末で古いファイルを読んだときに、設定まで巻き戻らないように。
+  let cfgNote = "";
+  if(hadNone && data && data.cfg && typeof data.cfg === "object"){
+    cfg = Object.assign(structuredClone(DEFAULTS), data.cfg);
+    normalize(); save(); buildSettings(); cfgNote = "設定も復元しました。";
+  }
+  markBackup();
+  renderHome(); renderRecord();
+  note(added === 0 ? "新しい記録はありませんでした。すべて揃っています。"
+                   : added + " 件を追加しました。" + cfgNote);
 }
 
 /* 連続日数・延べ日数・最長連続。1日に何回やっても1日と数える。 */
@@ -1570,14 +1694,79 @@ function renderRecord(){
         + (x.r || []).length + 'R</span><span class="hd">'
         + (x.r || []).map(mmss).join("  /  ") + "</span></div>").join("") + "</div>"
     + (st.sessions > 40 ? '<div class="legend-n" style="margin-top:12px">ほか '
-        + (st.sessions - 40) + " 回</div>" : "");
+        + (st.sessions - 40) + " 回</div>" : "")
+    + backupSection();
+
+  bindBackup();
+}
+
+function backupSection(){
+  const age = backupAge();
+  const when = age === null ? "まだ一度も書き出していません"
+             : age === 0 ? "今日、書き出しました"
+             : age + "日前に書き出しました";
+  const warn = backupOverdue() ? " warn" : "";
+  return '<div class="backup">'
+    + "<h3>記録の持ち出し</h3>"
+    + '<p class="' + warn.trim() + '">' + when + "</p>"
+    + '<p>この記録は端末の中だけにあります。端末を変えたり、'
+    + 'ブラウザのデータを消したりすると失われます。'
+    + 'ときどき書き出して、クラウドやメモ帳など消えない場所に置いておいてください。</p>'
+    + '<div class="row2">'
+      + '<button class="btn ghost" id="bkExport" type="button">書き出す</button>'
+      + '<button class="btn ghost" id="bkImport" type="button">読み込む</button>'
+    + "</div>"
+    + '<div class="row2">'
+      + '<button class="btn ghost" id="bkCopy" type="button">文字でコピー</button>'
+      + '<button class="btn ghost" id="bkPaste" type="button">貼り付けから</button>'
+    + "</div>"
+    + '<div class="bk-msg" id="bkMsg"></div>'
+    + '<p id="bkStore"></p>'
+    + '<input type="file" id="bkFile" accept="application/json,.json" hidden>'
+    + "</div>";
+}
+
+function bindBackup(){
+  const msg = $("#bkMsg");
+  const note = t => { msg.textContent = t; };
+
+  $("#bkExport").addEventListener("click", () => exportData(note));
+  $("#bkCopy").addEventListener("click", () => copyData(note));
+  $("#bkImport").addEventListener("click", () => $("#bkFile").click());
+  $("#bkFile").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const fr = new FileReader();
+    fr.onload = () => importJSON(String(fr.result), note);
+    fr.onerror = () => note("ファイルを開けませんでした。");
+    fr.readAsText(f);
+    e.target.value = "";
+  });
+  $("#bkPaste").addEventListener("click", async () => {
+    try{
+      const t = await navigator.clipboard.readText();
+      if(!t) return note("クリップボードが空でした。");
+      importJSON(t, note);
+    }catch(e){ note("貼り付けを読めませんでした。「読み込む」からファイルをお試しください。"); }
+  });
+
+  askPersist().then(ok => {
+    const el = $("#bkStore");
+    if(!el) return;
+    el.textContent = ok === true
+      ? "この端末では、保存領域が自動削除されないよう保護されています。"
+      : ok === false
+        ? "保存領域の保護は得られませんでした。書き出しをこまめに。"
+        : "";
+  });
 }
 
 function renderLog(){
   const st = stats();
   const box = $("#streak");
   box.hidden = st.total === 0;
-  box.innerHTML = statChips(st) + '<span class="go">記録 ›</span>';
+  box.innerHTML = statChips(st) + '<span class="go">'
+    + (backupOverdue() ? '<span class="dot-alert">●</span> ' : "") + "記録 ›</span>";
 }
 
 /* ============================================================
@@ -1901,6 +2090,7 @@ if("serviceWorker" in navigator && (location.protocol === "https:" || location.h
 }
 
 // 初期化
+askPersist();
 normalize();
 try{ if(Object.keys(VOICE_CLIPS).length){ Audio_.init(); Clips.load(); } }catch(e){}
 buildSettings();
