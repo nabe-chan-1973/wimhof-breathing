@@ -7,7 +7,7 @@
    音声もBGMも index.html の中に入っているので、これだけ持てば完全に
    オフラインで動く。Google Fonts は取れたときに一緒に貯めておく。 */
 
-const VERSION = "v8";   // index.html を更新したら、ここも上げると確実に配り直せる
+const VERSION = "v9";   // index.html を更新したら、ここも上げると確実に配り直せる
 const CACHE = "wimhof-" + VERSION;
 
 const ASSETS = [
@@ -18,7 +18,8 @@ const ASSETS = [
   "./icons/icon-512.png",
   "./icons/icon-192-maskable.png",
   "./icons/icon-512-maskable.png",
-  "./icons/apple-touch-icon.png"
+  "./icons/apple-touch-icon.png",
+  "./examples/record-screen.html"
 ];
 
 self.addEventListener("install", e => {

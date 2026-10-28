@@ -62,6 +62,24 @@ python tools/embed_voice.py                                # index.html に埋�
 `--only in,out` で一部だけ作り直せます。`tools/embed_voice.py --clear` で
 埋め込みを消すと、端末の音声合成による読み上げに戻ります。
 
+## 記録画面を別のアプリで使う
+
+`examples/record-screen.html` は、この記録画面（連続日数・のべ日数・
+最長連続／格子／一覧／書き出しと読み込み）だけを取り出して汎用化した
+単体で動くファイルです。
+
+**https://nabe-chan-1973.github.io/wimhof-breathing/examples/record-screen.html**
+
+別のアプリに持っていくときは、ファイル冒頭の `APP` だけ書き換えます。
+記録1件は `{ t: 保存時刻, d: "YYYY-MM-DD", v: [数値...] }` で、
+`v` の合計が格子の濃さになります。
+
+つまずきやすいところは、ファイル内に ★ 付きのコメントで残してあります。
+
+- 日付に `toISOString()` を使わない（UTCなので朝の実施が前日になる）
+- 読み込みは差分を足すだけにする（上書きすると後から増えた記録が消える）
+- `[hidden]{display:none !important}` を入れる（flex が hidden に勝つ）
+
 ## クレジット
 
 ガイド音声は **VOICEVOX：青山龍星** で生成しています。

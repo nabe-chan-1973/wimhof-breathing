@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>記録画面のひな形</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500&family=Zen+Old+Mincho:wght@400;600&display=swap">
+<style>
+/* ============================================================
+   習慣を記録する画面のひな形
+   WimHof呼吸法アプリ（https://github.com/nabe-chan-1973/wimhof-breathing）
+   から、記録画面だけを取り出して汎用化したもの。
+   このファイル単体で動く。別のアプリに持っていくときは、
+   下の APP だけ書き換えれば中身は触らなくてよい。
+   ============================================================ */
+:root{
+  --bg:#070c12;        /* 地色 */
+  --bg-2:#0b131c;      /* カードの背景 */
+  --line:#132030;      /* 未実施の升目・区切り線 */
+  --text:#dfe8ef;
+  --text-2:#9fb2c1;
+  --text-3:#63798a;    /* 補助文字 */
+  --accent:#e2845c;    /* 実施した日の色。1色決めて濃淡で使う */
+  --f-disp:"Zen Old Mincho", "Yu Mincho", serif;
+  --f-body:"Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+/* ★ これが無いと、flex を使った要素は hidden を付けても消えない */
+[hidden]{display:none !important}
+body{
+  margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+  font-family:var(--f-body); -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:520px; margin:0 auto; padding:26px 20px 60px}
+
+h1{margin:0 0 22px; font-family:var(--f-disp); font-size:21px; font-weight:600; letter-spacing:.06em}
+.eyebrow{font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--text-3); font-weight:500}
+
+/* ---------- 数字カード3枚 ---------- */
+.nums{display:flex; gap:9px}
+.num{
+  flex:1; background:var(--bg-2); border-radius:14px; padding:17px 8px;
+  display:flex; flex-direction:column; align-items:center; gap:7px;
+}
+.num b{
+  font-family:var(--f-disp); font-weight:400; font-size:31px; line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.num.hot b{color:var(--accent)}            /* 連続が伸びたら色が変わる */
+.num span{font-size:10.5px; color:var(--text-3); letter-spacing:.12em}
+
+/* ---------- 格子 ---------- */
+.grid-wrap{margin-top:28px; display:flex; flex-direction:column; gap:11px}
+.grid{display:flex; gap:5px}
+.grid .wd{display:flex; flex-direction:column; gap:5px; padding-right:3px}
+.grid .wd i{height:17px; line-height:17px; font-style:normal; font-size:9px; color:var(--text-3)}
+.grid .cols{display:flex; gap:5px; flex:1; overflow-x:auto}
+.grid .col{display:flex; flex-direction:column; gap:5px}
+.grid .d{width:17px; height:17px; border-radius:4px; background:var(--line); flex:none}
+.grid .d.l1{background:color-mix(in srgb, var(--accent) 32%, transparent)}
+.grid .d.l2{background:color-mix(in srgb, var(--accent) 62%, transparent)}
+.grid .d.l3{background:var(--accent)}
+.grid .d.none{background:transparent}      /* まだ来ていない日 */
+.grid .d.today{box-shadow:0 0 0 1.5px var(--text-3)}
+.legend{display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--text-3)}
+.legend i{width:11px; height:11px; border-radius:3px; display:inline-block}
+
+/* ---------- 一覧 ---------- */
+.list{margin-top:28px; display:flex; flex-direction:column; gap:1px;
+  background:var(--line); border-radius:14px; overflow:hidden}
+.row{background:var(--bg-2); padding:13px 15px; display:flex;
+  align-items:baseline; justify-content:space-between; gap:14px}
+.row .dt{font-size:12.5px; color:var(--text-3); letter-spacing:.04em; white-space:nowrap}
+.row .vl{font-size:13px; color:var(--text-2); text-align:right;
+  font-variant-numeric:tabular-nums; letter-spacing:.05em}
+.empty{color:var(--text-3); font-size:13px; line-height:1.8; text-align:center; padding:40px 0}
+
+/* ---------- 書き出し・読み込み ---------- */
+.backup{margin-top:30px; border-top:1px solid var(--line); padding-top:20px;
+  display:flex; flex-direction:column; gap:13px}
+.backup h2{margin:0; font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--text-3); font-weight:500}
+.backup p{margin:0; font-size:12px; line-height:1.75; color:var(--text-3)}
+.backup p.warn{color:var(--accent)}
+.btns{display:flex; gap:9px}
+.btn{
+  flex:1; padding:14px 10px; border-radius:12px; background:transparent;
+  border:1px solid #1a2836; color:var(--text-2); font:inherit; font-size:14px;
+  letter-spacing:.04em; cursor:pointer;
+}
+.btn:active{background:var(--bg-2)}
+.msg{font-size:12.5px; line-height:1.7; color:#7fc7e8; min-height:1.2em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>記録画面のひな形</h1>
+  <div id="screen"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   ここだけ書き換えれば、別のアプリに移植できる
+   ============================================================ */
+const APP = {
+  storeKey: "record-demo.log",   // localStorage のキー
+  backupKey: "record-demo.at",   // 最後に書き出した日
+  fileName: "record",            // 書き出すファイル名の頭
+  weeks: 13,                     // 格子に並べる週数（13週＝約3か月）
+  // 1件は { t:保存時刻(ms), d:"YYYY-MM-DD", v:[数値...] }。
+  // v はその回の実績。呼吸法なら息止めの秒数、瞑想なら分数など。
+  levels: [600, 1200],           // その日の v の合計が これ以下/以下/超 で3段階
+  fmt: v => Math.round(v / 60) + "分",   // 一覧での1件の見せ方
+  labels: ["連続日数", "のべ日数", "最長連続"],
+  hotAt: 3                       // 連続がこの日数以上で色を変える
+};
+
+/* ============================================================
+   日付
+   ★ toISOString() は UTC。日本時間の朝9時前に実施すると前日として
+     記録され、連続日数が途切れる。必ずローカル時刻で作ること。
+   ============================================================ */
+function dkey(d){
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+function dparse(s){ const a = s.split("-").map(Number); return new Date(a[0], a[1] - 1, a[2]); }
+function dshift(s, n){ const d = dparse(s); d.setDate(d.getDate() + n); return dkey(d); }
+
+/* ============================================================
+   保存と集計
+   ============================================================ */
+function load(){
+  try{ return JSON.parse(localStorage.getItem(APP.storeKey) || "[]"); }catch(e){ return []; }
+}
+function store(list){
+  try{ localStorage.setItem(APP.storeKey, JSON.stringify(list.slice(0, 2000))); return true; }
+  catch(e){ return false; }
+}
+// 1回ぶんを足す。アプリ本体からはこれを呼ぶ。
+function addRecord(values){
+  const list = load();
+  list.unshift({ t: Date.now(), d: dkey(new Date()), v: values });
+  store(list);
+}
+
+function stats(){
+  const list = load();
+  const byDay = {};
+  list.forEach(x => {
+    if(!byDay[x.d]) byDay[x.d] = { sum: 0, n: 0 };
+    byDay[x.d].sum += (x.v || []).reduce((a, b) => a + b, 0);
+    byDay[x.d].n++;
+  });
+  const days = Object.keys(byDay).sort();
+
+  // 連続日数。今日まだなら昨日から数える
+  // （実施前に「0日」と出ると気が滅入るので）
+  let streak = 0, cur = dkey(new Date());
+  if(!byDay[cur]) cur = dshift(cur, -1);
+  while(byDay[cur]){ streak++; cur = dshift(cur, -1); }
+
+  // 最長連続
+  let best = 0, run = 0, prev = null;
+  days.forEach(d => {
+    run = (prev && dshift(prev, 1) === d) ? run + 1 : 1;
+    if(run > best) best = run;
+    prev = d;
+  });
+
+  return { streak, total: days.length, best, sessions: list.length, byDay, list };
+}
+
+/* ============================================================
+   書き出しと読み込み
+   ★ 読み込みは差分を足すだけにする。上書きにすると、バックアップを
+     取ったあとに増えた記録が消えてしまう。
+   ============================================================ */
+function payload(){
+  return JSON.stringify({ app: APP.storeKey, version: 1,
+    exportedAt: new Date().toISOString(), log: load() }, null, 1);
+}
+function markBackup(){ try{ localStorage.setItem(APP.backupKey, dkey(new Date())); }catch(e){} }
+function backupAge(){
+  let at = null;
+  try{ at = localStorage.getItem(APP.backupKey); }catch(e){}
+  return at ? Math.round((dparse(dkey(new Date())) - dparse(at)) / 86400000) : null;
+}
+function backupOverdue(){
+  const age = backupAge();
+  return stats().total > 0 && (age === null || age >= 30);
+}
+
+async function exportData(note){
+  const json = payload(), name = APP.fileName + "-" + dkey(new Date()) + ".json";
+  // スマホは共有シートがいちばん確実。
+  // iOS のホーム画面アプリはダウンロードが効かないことがある。
+  try{
+    const file = new File([json], name, { type: "application/json" });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file] });
+      markBackup(); note("書き出しました。"); return;
+    }
+  }catch(e){ if(e && e.name === "AbortError"){ note(""); return; } }
+  try{
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    markBackup();
+    note(name + " を書き出しました。見当たらなければ「文字でコピー」を。");
+  }catch(e){ note("書き出せませんでした。"); }
+}
+
+async function copyData(note){
+  try{ await navigator.clipboard.writeText(payload()); markBackup();
+    note("コピーしました。メモ帳などに貼って保存してください。"); }
+  catch(e){ note("コピーできませんでした。"); }
+}
+
+function importJSON(text, note){
+  let data;
+  try{ data = JSON.parse(text); }catch(e){ return note("中身を読み取れませんでした。"); }
+  const incoming = Array.isArray(data) ? data : (data && data.log);
+  if(!Array.isArray(incoming)) return note("この形式ではないようです。");
+
+  const cur = load();
+  // t があればそれで、無ければ日付と中身で重複を判定する
+  const key = x => (x.t ? "t" + x.t : "d" + x.d + "|" + (x.v || []).join(","));
+  const seen = new Set(cur.map(key));
+  let added = 0;
+  incoming.forEach(x => {
+    if(!x || !x.d || seen.has(key(x))) return;
+    seen.add(key(x)); cur.push(x); added++;
+  });
+  cur.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : (b.t || 0) - (a.t || 0)));
+  if(!store(cur)) return note("保存できませんでした。空き容量をご確認ください。");
+  markBackup(); render();
+  note(added === 0 ? "新しい記録はありませんでした。" : added + " 件を追加しました。");
+}
+
+/* 空き容量不足による自動削除の対象から外す */
+async function askPersist(){
+  try{
+    if(!navigator.storage || !navigator.storage.persist) return null;
+    return await navigator.storage.persisted() || await navigator.storage.persist();
+  }catch(e){ return null; }
+}
+
+/* ============================================================
+   描画
+   ============================================================ */
+function render(){
+  const st = stats(), el = document.getElementById("screen");
+
+  if(st.total === 0){
+    el.innerHTML = '<div class="empty">まだ記録がありません。</div>' + demoButtons();
+    bind(); return;
+  }
+
+  const num = (v, label, hot) =>
+    '<div class="num' + (hot ? " hot" : "") + '"><b>' + v + "</b><span>" + label + "</span></div>";
+
+  // 格子。今週の土曜で終わるように、APP.weeks 週ぶん並べる
+  const end = new Date();
+  end.setDate(end.getDate() + (6 - end.getDay()));
+  const cur = new Date(end);
+  cur.setDate(cur.getDate() - (APP.weeks * 7 - 1));
+  const todayKey = dkey(new Date());
+
+  const cols = [];
+  for(let w = 0; w < APP.weeks; w++){
+    let col = "";
+    for(let i = 0; i < 7; i++){
+      const k = dkey(cur), day = st.byDay[k];
+      let cls = "d";
+      if(k > todayKey) cls += " none";
+      else if(day) cls += day.sum > APP.levels[1] ? " l3" : (day.sum > APP.levels[0] ? " l2" : " l1");
+      if(k === todayKey) cls += " today";
+      col += '<i class="' + cls + '" title="' + k + '"></i>';
+      cur.setDate(cur.getDate() + 1);
+    }
+    cols.push('<div class="col">' + col + "</div>");
+  }
+
+  const age = backupAge();
+  const when = age === null ? "まだ一度も書き出していません"
+             : age === 0 ? "今日、書き出しました" : age + "日前に書き出しました";
+
+  el.innerHTML =
+    '<div class="nums">'
+      + num(st.streak, APP.labels[0], st.streak >= APP.hotAt)
+      + num(st.total, APP.labels[1])
+      + num(st.best, APP.labels[2])
+    + "</div>"
+    + '<div class="grid-wrap"><div class="eyebrow">この' + Math.round(APP.weeks / 4.33) + "か月</div>"
+      + '<div class="grid"><div class="wd">'
+        + "日月火水木金土".split("").map(c => "<i>" + c + "</i>").join("")
+      + '</div><div class="cols">' + cols.join("") + "</div></div>"
+      + '<div class="legend"><span>多い日ほど濃く</span>'
+        + '<i class="d l1"></i><i class="d l2"></i><i class="d l3"></i></div>'
+    + "</div>"
+    + '<div class="list">' + st.list.slice(0, 40).map(x =>
+        '<div class="row"><span class="dt">' + x.d.replace(/-/g, ".") + " · "
+        + (x.v || []).length + '回</span><span class="vl">'
+        + (x.v || []).map(APP.fmt).join("  /  ") + "</span></div>").join("") + "</div>"
+    + '<div class="backup"><h2>記録の持ち出し</h2>'
+      + '<p class="' + (backupOverdue() ? "warn" : "") + '">' + when + "</p>"
+      + "<p>記録は端末の中だけにあります。ときどき書き出して、"
+      + "消えない場所に置いておいてください。</p>"
+      + '<div class="btns"><button class="btn" id="bkExport">書き出す</button>'
+      + '<button class="btn" id="bkImport">読み込む</button></div>'
+      + '<div class="btns"><button class="btn" id="bkCopy">文字でコピー</button>'
+      + '<button class="btn" id="bkPaste">貼り付けから</button></div>'
+      + '<div class="msg" id="bkMsg"></div><p id="bkStore"></p>'
+      + '<input type="file" id="bkFile" accept="application/json,.json" hidden></div>'
+    + demoButtons();
+
+  bind();
+}
+
+function demoButtons(){
+  return '<div class="backup"><h2>動作確認用</h2>'
+    + '<div class="btns"><button class="btn" id="dmAdd">サンプルを入れる</button>'
+    + '<button class="btn" id="dmClear">全部消す</button></div></div>';
+}
+
+function bind(){
+  const msg = document.getElementById("bkMsg");
+  const note = t => { if(msg) msg.textContent = t; };
+  const on = (id, fn) => { const e = document.getElementById(id); if(e) e.addEventListener("click", fn); };
+
+  on("bkExport", () => exportData(note));
+  on("bkCopy", () => copyData(note));
+  on("bkImport", () => document.getElementById("bkFile").click());
+  on("bkPaste", async () => {
+    try{ importJSON(await navigator.clipboard.readText(), note); }
+    catch(e){ note("貼り付けを読めませんでした。"); }
+  });
+  const f = document.getElementById("bkFile");
+  if(f) f.addEventListener("change", e => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const fr = new FileReader();
+    fr.onload = () => importJSON(String(fr.result), note);
+    fr.readAsText(file);
+    e.target.value = "";
+  });
+
+  on("dmAdd", () => {
+    const list = load();
+    for(let i = 0; i < 40; i++){
+      if(i % 7 === 3) continue;                       // ところどころ休む
+      const off = Math.floor(i * 1.25);
+      list.push({ t: Date.now() - i * 86400000, d: dshift(dkey(new Date()), -off),
+                  v: [300 + i * 20, 400 + i * 20, 500 + i * 20].slice(0, 2 + (i % 2)) });
+    }
+    store(list); render();
+  });
+  on("dmClear", () => { localStorage.removeItem(APP.storeKey);
+    localStorage.removeItem(APP.backupKey); render(); });
+
+  askPersist().then(ok => {
+    const e = document.getElementById("bkStore");
+    if(!e) return;
+    e.textContent = ok === true ? "保存領域は自動削除から保護されています。"
+                  : ok === false ? "保存領域の保護は得られませんでした。書き出しをこまめに。" : "";
+  });
+}
+
+render();
+</script>
+</body>
+</html>
